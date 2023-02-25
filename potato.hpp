@@ -20,7 +20,7 @@ class Potato {
             this->nhops = nhops;
         }
         // get the trace of the potato
-        std::vector <size_t> getTrace() const(){
+        std::vector <size_t> getTrace() const {
             return trace;
         }
         // add player to the trace
@@ -35,6 +35,79 @@ class Potato {
             }
             std::cout << std::endl;
         }
+
+};
+
+/* 
+The player side will be responsible for the following:
+1. Establish three network socket connections for communication:
+a. with the player to the left
+b. with the player to the right
+c. with the ringmaster
+2. Keep listening to the three channels as “potato” can arrive on any of these three channels. Note that commands and important information may also be received from the ringmaster.
+3. Properly handle everything received based on game rules.
+*/
+
+/*The player program is invoked as:
+player <machine_name> <port_num>
+(example: ./player vcm-xxxx.vm.duke.edu 1234)
+*/
+
+/*where machine_name is the machine name (e.g. login-teer-03.oit.duke.edu) where the ringmaster process is running and port_num is the port number given to the ringmaster process which it uses to open a socket for player connections. If there are N players, each player will have an ID of 0, 1, 2, to N-1.
+A player’s ID and other information that each player will need to connect to their left and right neighbor can be provided by the ringmaster as part of setting up the game. The players are connected in the ring such that the left neighbor of player i is player i-1 and the right neighbor is player i+1. Player 0 is the right neighbor of player N-1, and Player N-1 is the left neighbor of player 0.
+*/
+
+
+class Player {
+    private:
+        const char *machine_name;
+        int port_num;
+        size_t player_id;
+
+    public:
+        // constructor 
+        Player (const char *machine_name, int port_num): machine_name(machine_name), port_num(port_num) {};
+
+        // get the machine name
+        const char *getMachineName() const {
+            return machine_name;
+        }
+
+        // get the port number
+        int getPortNum() const {
+            return port_num;
+        }
+
+        // get the player id
+        size_t getPlayerId() const {
+            return player_id;
+        }
+
+        // set the player id
+        void setPlayerId(size_t player_id) {
+            this->player_id = player_id;
+        }
+
+        // check content of command line arguments
+        void checkPlayerArg(const char *machine_name, int port_num);
+
+        // connect to the ringmaster
+        void connectToRingmaster();
+
+        // connect to neighbors
+        void connectToNeighbors();
+
+        // keep listening to ringmaster, left neighbor and right neighbor
+        void keepListening();
+
+        // handle the potato
+        void handlePotato(Potato potato);
+
+        // send the potato to the next player
+        void sendPotato(Potato potato);
+
+        // send the potato to the ringmaster
+        void sendBackPotato(Potato potato);
 
 };
 
@@ -63,14 +136,14 @@ Ready to start the game, sending potato to player 2 Trace of potato:
 
 class Ringmaster {
     private:
-        const char *port_num;
+        int port_num;
         size_t num_players;
         size_t num_hops;
-        Potato potato;
+        Player *players;
 
     public:
         //constructor
-        Ringmaster(const char *port_num, size_t num_player, size_t num_hops): port_num(port_num), num_players(num_players), num_hops(num_hops), potato(num_hops) {
+        Ringmaster(int port_num, size_t num_player, size_t num_hops): port_num(port_num), num_players(num_players), num_hops(num_hops) {
             // print out the ringmaster info
             std::cout << "Potato Rringmaster" << std::endl;
             std::cout << "Players = " << num_players << std::endl;
@@ -78,7 +151,7 @@ class Ringmaster {
             };
 
         // get the port number
-        const char *getPortNum() const{
+        int getPortNum() const{
             return port_num;
         }
 
@@ -92,35 +165,18 @@ class Ringmaster {
             return num_hops;
         }
         
+        // connect to the players
+        void connectToPlayers();
 
+        // lanch the potato to the first random player
+        void launchPotato(Potato potato);
+
+        // print out the trace of the potato when get it back from the last player
+        void printTrace(Potato potato){
+            potato.printTrace();
+        }
 };
 
-/* 
-The player side will be responsible for the following:
-1. Establish three network socket connections for communication:
-a. with the player to the left
-b. with the player to the right
-c. with the ringmaster
-2. Keep listening to the three channels as “potato” can arrive on any of these three channels. Note that commands and important information may also be received from the ringmaster.
-3. Properly handle everything received based on game rules.
-*/
+        // check content of command line arguments
+        void checkRMArg(int port_num, size_t num_player, size_t num_hops);
 
-/*The player program is invoked as:
-player <machine_name> <port_num>
-(example: ./player vcm-xxxx.vm.duke.edu 1234)
-*/
-
-/*where machine_name is the machine name (e.g. login-teer-03.oit.duke.edu) where the ringmaster process is running and port_num is the port number given to the ringmaster process which it uses to open a socket for player connections. If there are N players, each player will have an ID of 0, 1, 2, to N-1.
-A player’s ID and other information that each player will need to connect to their left and right neighbor can be provided by the ringmaster as part of setting up the game. The players are connected in the ring such that the left neighbor of player i is player i-1 and the right neighbor is player i+1. Player 0 is the right neighbor of player N-1, and Player N-1 is the left neighbor of player 0.
-*/
-
-
-class Player {
-    private:
-        const char *machine_name;
-        const char *port_num;
-        size_t player_id;
-        Player *left;
-        Player *right;
-        
-}

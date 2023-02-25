@@ -1,12 +1,11 @@
-TARGETS=client server
+TARGETS = ringmaster player
 
 all: $(TARGETS)
 clean:
 	rm -f $(TARGETS)
 
-client: client.cpp
+ringmaster: ringmaster.cpp
 	g++ -g -o $@ $<
 
-server: server.cpp
+player: player.cpp
 	g++ -g -o $@ $<
-
