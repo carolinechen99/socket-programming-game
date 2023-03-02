@@ -1,18 +1,29 @@
 #include "potato.hpp"
+#include "socketutils.hpp"
 
 using namespace std;
 
 // connect to the players
-void Ringmaster::connectToPlayers(){}
+int Ringmaster::connectToPlayers(){
+    return 0;
+}
 
 // lanch the potato to the first random player
-void Ringmaster::launchPotato(Potato potato){}
+int Ringmaster::launchPotato(Potato potato){
+    return 0;
+}
+
+// create ring process
+int Ringmaster::createRing(){
+    return 0;
+}
 
 
 // check content of command line arguments
-void checkRMArg(int port_num, size_t num_player, size_t num_hops){
+void checkRMArg(char *port_num, size_t num_player, size_t num_hops){
     // check port number
-    if (port_num < 1024 || port_num > 65535) {
+    int num = atoi(port_num);
+    if (num < 1024 || num > 65535) {
         cerr << "Error: port number should be between 1024 and 65535" << endl;
         exit(1);
     }
@@ -23,13 +34,14 @@ void checkRMArg(int port_num, size_t num_player, size_t num_hops){
         exit(1);
     }
 
-    // check number of hops: greater than or equal to 0
-    if (num_hops < 0) {
-        cerr << "Error: number of hops should be greater than or equal to 0" << endl;
+    // check number of hops: greater than or equal to 0 and less than or equal to 512
+    if (num_hops < 0 || num_hops > 512) {
+        cerr << "Error: number of hops should be greater than or equal to 0 and less than or equal to 512" << endl;
         exit(1);
     }
 
 }
+
 
 
 
@@ -45,7 +57,7 @@ int main(int argc, char *argv[]) {
     }
 
     // assign them to ringmaster
-    int port_num = atoi(argv[1]);
+    char *port_num = argv[1];
     size_t num_players = atoi(argv[2]);
     size_t num_hops = atoi(argv[3]);
 
@@ -58,13 +70,15 @@ int main(int argc, char *argv[]) {
     // initialize the ringmaster
     Ringmaster ringmaster(port_num, num_players, num_hops);
 
-    // print out the ringmaster info
-    cout << "Potato Ringmaster" << endl;
-    cout << "Players = " << ringmaster.getNumPlayers() << endl;
-    cout << "Hops = " << ringmaster.getNumHops() << endl;
+    // set up the ringmaster server
+    Server * rm_server = new Server();
+    rm_server->createSocket(port_num, false);
 
     // connect to the players
     ringmaster.connectToPlayers();
+
+    //create ring process
+    ringmaster.createRing();
 
     // launch the potato to the first random player
     ringmaster.launchPotato(potato);

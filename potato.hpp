@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstddef>
 #include <vector>
+#include <ctime>
 
 
 class Potato {
@@ -60,23 +61,28 @@ A player’s ID and other information that each player will need to connect to t
 
 class Player {
     private:
-        const char *machine_name;
-        int port_num;
+        char *hostname;
+        char *port_num;
         size_t player_id;
+        int rm_sockfd;
+        int prev_sockfd;
+        int next_sockfd;
+
 
     public:
         // constructor 
-        Player (const char *machine_name, int port_num): machine_name(machine_name), port_num(port_num) {};
+        Player (){};
 
-        // get the machine name
-        const char *getMachineName() const {
-            return machine_name;
+        // get the hostname
+        char * getHostname() const {
+            return hostname;
         }
 
         // get the port number
-        int getPortNum() const {
+        char * getPortNum() const {
             return port_num;
         }
+ 
 
         // get the player id
         size_t getPlayerId() const {
@@ -88,26 +94,31 @@ class Player {
             this->player_id = player_id;
         }
 
+        // set the hostname
+        void setHostname(char *hostname) {
+            this->hostname = hostname;
+        }
+
+        // set the port number
+        void setPortNum(char *port_num) {
+            this->port_num = port_num;
+        }
+
         // check content of command line arguments
-        void checkPlayerArg(const char *machine_name, int port_num);
+        int checkPlayerArg(const char *machine_name, char *port_num);
 
         // connect to the ringmaster
-        void connectToRingmaster();
+        int connectToRingmaster();
 
         // connect to neighbors
-        void connectToNeighbors();
+        int connectToNeighbors();
 
-        // keep listening to ringmaster, left neighbor and right neighbor
-        void keepListening();
+        // keep listening to ringmaster, left neighbor and right neighbor, and receive potato
+        int receivePotato();
 
-        // handle the potato
-        void handlePotato(Potato potato);
+        // handle the potato, either pass it to neighbor or send it back to ringmaster
+        int passPotato(Potato potato);
 
-        // send the potato to the next player
-        void sendPotato(Potato potato);
-
-        // send the potato to the ringmaster
-        void sendBackPotato(Potato potato);
 
 };
 
@@ -136,14 +147,14 @@ Ready to start the game, sending potato to player 2 Trace of potato:
 
 class Ringmaster {
     private:
-        int port_num;
+        char *port_num;
         size_t num_players;
         size_t num_hops;
         Player *players;
 
     public:
         //constructor
-        Ringmaster(int port_num, size_t num_player, size_t num_hops): port_num(port_num), num_players(num_players), num_hops(num_hops) {
+        Ringmaster(char * port_num, size_t num_player, size_t num_hops): port_num(port_num), num_players(num_players), num_hops(num_hops) {
             // print out the ringmaster info
             std::cout << "Potato Rringmaster" << std::endl;
             std::cout << "Players = " << num_players << std::endl;
@@ -151,7 +162,7 @@ class Ringmaster {
             };
 
         // get the port number
-        int getPortNum() const{
+        char * getPortNum() const{
             return port_num;
         }
 
@@ -166,17 +177,21 @@ class Ringmaster {
         }
         
         // connect to the players
-        void connectToPlayers();
+        int connectToPlayers();
+
+        // create ring process
+        int createRing();
 
         // lanch the potato to the first random player
-        void launchPotato(Potato potato);
+        int launchPotato(Potato potato);
 
         // print out the trace of the potato when get it back from the last player
         void printTrace(Potato potato){
             potato.printTrace();
         }
+
 };
 
         // check content of command line arguments
-        void checkRMArg(int port_num, size_t num_player, size_t num_hops);
+        void checkRMArg(char *port_num, size_t num_player, size_t num_hops);
 
