@@ -2,7 +2,7 @@
 
 using namespace std;
 
-    int Server::createSocket(char *port, bool isPlayer){
+    int Server::createSocket(char *port, bool isPlayer, Server &server){
         int status;
         int socket_fd;
         struct addrinfo host_info;
@@ -27,32 +27,58 @@ using namespace std;
             ((struct sockaddr_in *)host_info_list->ai_addr)->sin_port = 0;
         }
 
-        socket_fd = socket(host_info_list->ai_family, 
-                    host_info_list->ai_socktype, 
-                    host_info_list->ai_protocol);
-        if (socket_fd == -1) {
-            cerr << "Error: cannot create socket" << endl;
-            cerr << "  (" << hostname << "," << port << ")" << endl;
+        // loop through all the results and bind to the first we can
+        struct addrinfo *p;
+        for(p = host_info_list; p != NULL; p = p->ai_next) {
+            socket_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+            if (socket_fd == -1) {
+                continue;
+            } //if
+
+            if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &status, sizeof(int)) == -1) {
+                cerr << "Error: cannot set socket option" << endl;
+                return -1;
+            } //if
+
+            if (bind(socket_fd, p->ai_addr, p->ai_addrlen) == -1) {
+                close(socket_fd);
+                continue;
+            } //if
+            break;
+        } //for
+        // get port number
+        server.port = getPortNum(socket_fd);
+
+        freeaddrinfo(host_info_list);
+
+        if (p == NULL) {
+            cerr << "Error: failed to bind socket" << endl;
             return -1;
         } //if
 
-        int yes = 1;
-        status = setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
-        status = bind(socket_fd, host_info_list->ai_addr, host_info_list->ai_addrlen);
-        if (status == -1) {
-            cerr << "Error: cannot bind socket" << endl;
-            cerr << "  (" << hostname << "," << port << ")" << endl;
-            return -1;
-        } //if
-
-        status = listen(socket_fd, 100);
+        status = listen(socket_fd, SOMAXCONN);
         if (status == -1) {
             cerr << "Error: cannot listen on socket" << endl; 
             cerr << "  (" << hostname << "," << port << ")" << endl;
             return -1;
         } //if
 
-        freeaddrinfo(host_info_list);
+        // set server's socket_fd
+        server.socket_fd = socket_fd;
         return 0;
 
     }
+
+    int Server::getPortNum(int socket_fd){
+        struct sockaddr_in sin;
+        socklen_t len = sizeof(sin);
+        if (getsockname(socket_fd, (struct sockaddr *)&sin, &len) == -1){
+            cerr << "Error: cannot get socket name" << endl;
+            return -1;
+        }
+        int port = ntohs(sin.sin_port);
+        //print port for debugging
+        cout << "port: " << port << endl;
+        return port;
+    }
+

@@ -3,6 +3,8 @@
 #include <vector>
 #include <ctime>
 
+#include "socketutils.hpp"
+
 
 class Potato {
     private:
@@ -60,11 +62,11 @@ A player’s ID and other information that each player will need to connect to t
 
 
 class Player {
-    private:
+    public:
         char *hostname;
         char *port_num;
         size_t player_id;
-        int rm_sockfd;
+        int master_sockfd;
         int prev_sockfd;
         int next_sockfd;
 
@@ -108,10 +110,16 @@ class Player {
         int checkPlayerArg(const char *machine_name, char *port_num);
 
         // connect to the ringmaster
-        int connectToRingmaster();
+        int connectToRingmaster(char *machine_name, char *master_port, Player *&player);
 
-        // connect to neighbors
-        int connectToNeighbors();
+        // connect to next player
+        int connectNextPlayer(Player &player);
+
+        // accept connection from previous player
+        int acceptPrevPlayer(Player &player);
+
+        // connect to neighbor players
+        int connectToNeighbors(Player &player);
 
         // keep listening to ringmaster, left neighbor and right neighbor, and receive potato
         int receivePotato();
@@ -146,11 +154,15 @@ Ready to start the game, sending potato to player 2 Trace of potato:
 2,1,2,0,2,1,0,2,...*/
 
 class Ringmaster {
-    private:
+    public:
         char *port_num;
         size_t num_players;
         size_t num_hops;
         Player *players;
+        std::vector <int> player_fds;
+        std::vector <char *> player_hostnames;
+        std::vector <char *> player_port_nums;
+
 
     public:
         //constructor
@@ -177,10 +189,10 @@ class Ringmaster {
         }
         
         // connect to the players
-        int connectToPlayers();
+        int connectToPlayers(Ringmaster &ringmaster, Server &master_server);
 
         // create ring process
-        int createRing();
+        int createRing(Ringmaster &ringmaster, Server &server);
 
         // lanch the potato to the first random player
         int launchPotato(Potato potato);
