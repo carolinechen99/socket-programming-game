@@ -103,7 +103,7 @@ int Player::connectNextPlayer(Player &player){
 }
 
 //connect to the ringmaster
-int connectToRingmaster(char *machine_name, char *master_port, Player &player, Server &player_server){
+int Player::connectToRingmaster(char *machine_name, char *master_port, Player &player, Server &player_server){
     struct addrinfo host_info;
     struct addrinfo *host_info_list;
 
@@ -225,9 +225,22 @@ int main(int argc, char *argv[]) {
     // initialize the player
     Player *player = new Player();
 
+
     // set up player socket
-    Server *player_server = new Server();
+    Server *player_server;
     player_server->createSocket(NULL, true, *player_server);
+
+    // connect to the ringmaster
+    if (connectToRingmaster(machine_name, port_num, *player, *player_server) == -1) {
+        cerr << "Error: cannot connect to ringmaster" << endl;
+        exit(1);
+    }
+
+    // connect to neighbor player
+    if (connectToNeighbors(*player) == -1) {
+        cerr << "Error: cannot connect to neighbor player" << endl;
+        exit(1);
+    }
 
 
 

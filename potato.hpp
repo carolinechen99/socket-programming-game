@@ -110,7 +110,7 @@ class Player {
         int checkPlayerArg(const char *machine_name, char *port_num);
 
         // connect to the ringmaster
-        int connectToRingmaster(char *machine_name, char *master_port, Player *&player);
+        int connectToRingmaster(char *machine_name, char *master_port, Player &player, Server &player_server);
 
         // connect to next player
         int connectNextPlayer(Player &player);
