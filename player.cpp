@@ -3,6 +3,106 @@
 
 using namespace std;
 
+// keep listening to the three channels, and receive potato
+int Player::handlePotato(Potato potato, int num_players){
+    // create a set of file descriptors
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(master_sockfd, &readfds);
+    FD_SET(prev_sockfd, &readfds);
+    FD_SET(next_sockfd, &readfds);
+
+    // find the max fd
+    int max_fd = max(master_sockfd, prev_sockfd);
+    max_fd = max(max_fd, next_sockfd);
+
+    // select() to check if there is any msg from ringmaster or neighbors
+    int status = select(max_fd + 1, &readfds, NULL, NULL, NULL);
+    if (status == -1) {
+        cerr << "Error: cannot select" << endl;
+        return -1;
+    }
+
+    // if there is a msg from ringmaster, receive the potato
+    if (FD_ISSET(master_sockfd, &readfds)) {
+        status = recv(master_sockfd, &potato, sizeof(potato), MSG_WAITALL);
+        if (status == -1) {
+            cerr << "Error: cannot receive potato from ringmaster" << endl;
+            return -1;
+        }
+
+        // if received potato with nhops = 0, shut down the game
+        if (potato.nhops == 0) {
+            return 0;
+        }
+    }
+
+    // if there is a msg from previous player, receive the potato
+    else if (FD_ISSET(prev_sockfd, &readfds)) {
+        status = recv(prev_sockfd, &potato, sizeof(potato), MSG_WAITALL);
+        if (status == -1) {
+            cerr << "Error: cannot receive potato from previous player" << endl;
+            return -1;
+        }
+    }
+
+    // if there is a msg from next player, receive the potato
+    else if (FD_ISSET(next_sockfd, &readfds)) {
+        status = recv(next_sockfd, &potato, sizeof(potato), MSG_WAITALL);
+        if (status == -1) {
+            cerr << "Error: cannot receive potato from next player" << endl;
+            return -1;
+        }
+    }
+
+    // if nhops > 0, add the player id to the path, pass to random neighbor
+    if (potato.nhops > 0) {
+        potato.trace.push_back(player_id);
+        potato.nhops--;
+        // pass to random neighbor
+        // seed the random number generator
+        srand(time(NULL));
+        int random_neighbor = rand() % 2;
+        if (random_neighbor == 0) {
+            status = send(next_sockfd, &potato, sizeof(potato), 0);
+            if (status == -1) {
+                cerr << "Error: cannot send potato to next player" << endl;
+                return -1;
+            }
+
+            // print "Sending potato to <player_id>"
+            cout << "Sending potato to " << (player_id + 1) % num_players << endl;
+        }
+        else {
+            status = send(prev_sockfd, &potato, sizeof(potato), 0);
+            if (status == -1) {
+                cerr << "Error: cannot send potato to previous player" << endl;
+                return -1;
+            }
+
+            // print "Sending potato to <player_id>"
+            cout << "Sending potato to " << (player_id + num_players - 1) % num_players << endl;
+        }
+    }
+
+    else if (potato.nhops == 0) {
+        // print "I'm it"
+        cout << "I'm it" << endl;
+        // send potato back to ringmaster
+        status = send(master_sockfd, &potato, sizeof(potato), 0);
+        if (status == -1) {
+            cerr << "Error: cannot send potato to ringmaster" << endl;
+            return -1;
+        }
+    }
+
+    else {
+        cerr << "Error: nhops < 0" << endl;
+        return -1;
+    }
+    return 0;
+}
+
 // connec to neighbors
 int Player::connectToNeighbors(Player &player){
     // connect to next player
@@ -71,7 +171,7 @@ int Player::connectNextPlayer(Player &player){
 
     status = getaddrinfo(next_hostname, next_port, &host_info, &host_info_list);
     if (status != 0) {
-        cerr << "Error: cannot get address info for host" << endl;
+        cerr << "Error: cannot get address info for next host" << endl;
         cerr << "  (" << next_hostname << "," << next_port << ")" << endl;
         return -1;
     } //if
@@ -113,7 +213,7 @@ int Player::connectToRingmaster(char *machine_name, char *master_port, Player &p
 
     int status = getaddrinfo(machine_name, master_port, &host_info, &host_info_list);
     if (status != 0) {
-        cerr << "Error: cannot get address info for host" << endl;
+        cerr << "Error: cannot get address info for master host" << endl;
         cerr << "  (" << machine_name << "," << master_port << ")" << endl;
         return -1;
     } //if
@@ -153,6 +253,8 @@ int Player::connectToRingmaster(char *machine_name, char *master_port, Player &p
 
     freeaddrinfo(host_info_list);
 
+    // set numPlayers
+    player.num_players = numPlayers;
 
     // set id 
     player.player_id = id;
@@ -228,20 +330,41 @@ int main(int argc, char *argv[]) {
 
     // set up player socket
     Server *player_server;
-    player_server->createSocket(NULL, true, *player_server);
+    if (player_server->createSocket(NULL, true, *player_server) == -1) {
+        cerr << "Error: cannot create player socket" << endl;
+        exit(1);
+    }
 
     // connect to the ringmaster
-    if (connectToRingmaster(machine_name, port_num, *player, *player_server) == -1) {
+    if (player->connectToRingmaster(machine_name, port_num, *player, *player_server) == -1) {
         cerr << "Error: cannot connect to ringmaster" << endl;
         exit(1);
     }
 
-    // connect to neighbor player
-    if (connectToNeighbors(*player) == -1) {
+    // connect to neighbor players
+    if (player->connectToNeighbors(*player) == -1) {
         cerr << "Error: cannot connect to neighbor player" << endl;
         exit(1);
     }
 
+    // initialize a potato
+    Potato potato;
+    while(true){
+        // handle the potato
+        if (player->handlePotato(potato, player->num_players) == -1) {
+            cerr << "Error: cannot handle potato" << endl;
+            exit(1);
+        }
+    }
+
+    // close socket
+    close(player->master_sockfd);
+    close(player->next_sockfd);
+    close(player->prev_sockfd);
 
 
+    // free memory
+    delete player;
+    delete player_server;
+    return 0;
 }

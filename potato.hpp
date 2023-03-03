@@ -7,13 +7,15 @@
 
 
 class Potato {
-    private:
+    public:
         size_t nhops; // number of hops
         std::vector <size_t> trace; // trace of the potato
 
 
     public:
         // constructor
+        Potato(): nhops(0){};
+
         Potato(size_t nhops): nhops(nhops){};
         size_t getHops() const {
             return nhops;
@@ -69,6 +71,7 @@ class Player {
         int master_sockfd;
         int prev_sockfd;
         int next_sockfd;
+        int num_players;
 
 
     public:
@@ -122,10 +125,7 @@ class Player {
         int connectToNeighbors(Player &player);
 
         // keep listening to ringmaster, left neighbor and right neighbor, and receive potato
-        int receivePotato();
-
-        // handle the potato, either pass it to neighbor or send it back to ringmaster
-        int passPotato(Potato potato);
+        int handlePotato(Potato potato, int num_players);
 
 
 };
@@ -167,11 +167,7 @@ class Ringmaster {
     public:
         //constructor
         Ringmaster(char * port_num, size_t num_player, size_t num_hops): port_num(port_num), num_players(num_players), num_hops(num_hops) {
-            // print out the ringmaster info
-            std::cout << "Potato Rringmaster" << std::endl;
-            std::cout << "Players = " << num_players << std::endl;
-            std::cout << "Hops = " << num_hops << std::endl;
-            };
+            }
 
         // get the port number
         char * getPortNum() const{
@@ -195,12 +191,18 @@ class Ringmaster {
         int createRing(Ringmaster &ringmaster, Server &server);
 
         // lanch the potato to the first random player
-        int launchPotato(Potato potato);
+        int launchPotato(Potato potato, Ringmaster &ringmaster);
+
+        // receive potato from the last player
+        int receivePotato(Potato potato, Ringmaster &ringmaster);
 
         // print out the trace of the potato when get it back from the last player
         void printTrace(Potato potato){
             potato.printTrace();
         }
+
+        // shut down the game
+        int shutDownGame(Ringmaster &ringmaster);
 
 };
 

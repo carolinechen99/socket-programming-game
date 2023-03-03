@@ -17,8 +17,7 @@ using namespace std;
 
         status = getaddrinfo(hostname, port, &host_info, &host_info_list);
         if (status != 0) {
-            cerr << "Error: cannot get address info for host" << endl;
-            cerr << "  (" << hostname << "," << port << ")" << endl;
+            cerr << "Error: cannot get address info for host --server" << endl;
             return -1;
         } //if
 
