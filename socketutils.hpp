@@ -14,18 +14,38 @@ class Server{
     int socket_fd;
     int port;
 
+    Server(): socket_fd(-1), port(-1) {}
 
-    ~Server(){}
+    ~Server(){
+        close(socket_fd);
+    }
 
     // create socket and bind to port
     // Reference: tcp_example/server.cpp
-    int createSocket(char *port, bool isPlayer, Server &server);
+    int createSocket(const char *port);
 
     // get port number
     int getPortNum(int socket_fd);
 
-    // get hostname
-    char *getHostname();
+    // set socket_fd
+    void setSocketFd(int socket_fd){
+        this->socket_fd = socket_fd;
+    }
+
+    // set port
+    void setPort(int port){
+        this->port = port;
+    }
+
+    // get socket_fd
+    int getSocketFd(){
+        return socket_fd;
+    }
+
+    // get port
+    int getPort(){
+        return port;
+    }
 
 };
 

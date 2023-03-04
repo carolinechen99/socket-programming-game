@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <vector>
 #include <ctime>
+#include <algorithm>
 
 #include "socketutils.hpp"
 
@@ -9,35 +10,47 @@
 class Potato {
     public:
         size_t nhops; // number of hops
-        std::vector <size_t> trace; // trace of the potato
+        size_t trace[1024]; // trace of the potato
+        size_t fix_hop; // fixed hop
 
 
     public:
         // constructor
-        Potato(): nhops(0){};
+        Potato(): nhops(0), fix_hop(0) {
+            memset(trace, 0, sizeof(trace));
+    }
 
-        Potato(size_t nhops): nhops(nhops){};
-        size_t getHops() const {
-            return nhops;
+        Potato(size_t nhops): nhops(nhops), fix_hop(nhops) {
+            memset(trace, 0, sizeof(trace));
         }
+
+        size_t getHops() const {
+            return this->nhops;
+        }
+        size_t getFixHop() const {
+            return this->fix_hop;
+        }
+
         // set the number of hops
         void setHops(size_t nhops) {
             this->nhops = nhops;
         }
-        // get the trace of the potato
-        std::vector <size_t> getTrace() const {
-            return trace;
-        }
         // add player to the trace
-        void addTrace(size_t player) {
-            trace.push_back(player);
+        void addTrace(size_t player_id) {
+            this->trace[this->fix_hop - this->nhops] = player_id;
+            
         }
+
         // print out the trace of the potato
         void printTrace() const {
-            std::cout << "Trace of potato: " << std::endl;
-            for (size_t i = 0; i < trace.size(); i++) {
-                std::cout << trace[i] << ",";
+            if (this->fix_hop == 0) {
+                return;
             }
+            std::cout << "Trace of potato: " << std::endl;
+            for (size_t i = 0; i < this->fix_hop-1; i++) {
+                std::cout << this->trace[i] << ",";
+            }
+            std::cout << this->trace[fix_hop-1];
             std::cout << std::endl;
         }
 
@@ -65,8 +78,8 @@ A player’s ID and other information that each player will need to connect to t
 
 class Player {
     public:
-        char *hostname;
-        char *port_num;
+        char hostname[256];
+        char port_num[100];
         size_t player_id;
         int master_sockfd;
         int prev_sockfd;
@@ -76,15 +89,44 @@ class Player {
 
     public:
         // constructor 
-        Player (){};
+        Player (){
+            player_id = 0;
+            master_sockfd = -1;
+            prev_sockfd = -1;
+            next_sockfd = -1;
+            num_players = 0;
+            memset(hostname, 0, sizeof(hostname));
+            memset(port_num, 0, sizeof(port_num));
+        }
+        
+        // get master socket file descriptor
+        int getMasterSockfd() const {
+            return master_sockfd;
+        }
+
+        // get previous socket file descriptor
+        int getPrevSockfd() const {
+            return prev_sockfd;
+        }
+
+        // get next socket file descriptor
+        int getNextSockfd() const {
+            return next_sockfd;
+        }
+
+        // get the number of players
+        int getNumPlayers() const {
+            return num_players;
+        }
+
 
         // get the hostname
-        char * getHostname() const {
+        const char* getHostname() const {
             return hostname;
         }
 
         // get the port number
-        char * getPortNum() const {
+        const char* getPortNum() const {
             return port_num;
         }
  
@@ -101,31 +143,51 @@ class Player {
 
         // set the hostname
         void setHostname(char *hostname) {
-            this->hostname = hostname;
+            strcpy(this->hostname, hostname);
         }
 
         // set the port number
         void setPortNum(char *port_num) {
-            this->port_num = port_num;
+            strcpy(this->port_num, port_num);
+        }
+
+        // set master socket file descriptor
+        void setMasterSockfd(int master_sockfd) {
+            this->master_sockfd = master_sockfd;
+        }
+
+        // set previous socket file descriptor
+        void setPrevSockfd(int prev_sockfd) {
+            this->prev_sockfd = prev_sockfd;
+        }
+
+        // set next socket file descriptor
+        void setNextSockfd(int next_sockfd) {
+            this->next_sockfd = next_sockfd;
+        }
+
+        // set the number of players
+        void setNumPlayers(int num_players) {
+            this->num_players = num_players;
         }
 
         // check content of command line arguments
-        int checkPlayerArg(const char *machine_name, char *port_num);
+        int checkPlayerArg(const char *machine_name, const char *port_num);
 
         // connect to the ringmaster
-        int connectToRingmaster(char *machine_name, char *master_port, Player &player, Server &player_server);
+        int connectToRingmaster(const char *machine_name, const char *master_port, Server &player_server);
 
         // connect to next player
-        int connectNextPlayer(Player &player);
+        int connectNextPlayer();
 
         // accept connection from previous player
-        int acceptPrevPlayer(Player &player);
+        int acceptPrevPlayer(Server &player_server);
 
         // connect to neighbor players
-        int connectToNeighbors(Player &player);
+        int connectToNeighbors(Server &player_server);
 
         // keep listening to ringmaster, left neighbor and right neighbor, and receive potato
-        int handlePotato(Potato potato, int num_players);
+        int handlePotato();
 
 
 };
@@ -155,22 +217,38 @@ Ready to start the game, sending potato to player 2 Trace of potato:
 
 class Ringmaster {
     public:
-        char *port_num;
+        char port_num [100];
         size_t num_players;
         size_t num_hops;
-        Player *players;
         std::vector <int> player_fds;
-        std::vector <char *> player_hostnames;
-        std::vector <char *> player_port_nums;
+        std::vector <std::string> player_hostnames;
+        std::vector <std::string> player_port_nums;
 
 
     public:
         //constructor
-        Ringmaster(char * port_num, size_t num_player, size_t num_hops): port_num(port_num), num_players(num_players), num_hops(num_hops) {
+        Ringmaster(const char * port_num, size_t num_player, size_t num_hops): num_players(num_players), num_hops(num_hops) {
+            memset(this->port_num, 0, sizeof(this->port_num));
+            strcpy(this->port_num, port_num);
             }
 
+        // get player fds
+        std::vector <int> getPlayerFds() const {
+            return player_fds;
+        }
+
+        // get player hostnames
+        std::vector <std::string> getPlayerHostnames() const {
+            return player_hostnames;
+        }
+
+        // get player port numbers
+        std::vector <std::string> getPlayerPortNums() const {
+            return player_port_nums;
+        }
+
         // get the port number
-        char * getPortNum() const{
+        const char* getPortNum() const {
             return port_num;
         }
 
@@ -183,29 +261,53 @@ class Ringmaster {
         size_t getNumHops() const{
             return num_hops;
         }
+
+        // set the port number
+        void setPortNum(const char *port_num) {
+            strcpy(this->port_num, port_num);
+        }
+
+        // set the number of players
+        void setNumPlayers(size_t num_players) {
+            this->num_players = num_players;
+        }
+
+        // add player fds
+        void addPlayerFd(int player_fd) {
+            this->player_fds.push_back(player_fd);
+        }
+
+        // add player hostnames
+        void addPlayerHostname(std::string player_hostname) {
+            this->player_hostnames.push_back(player_hostname);
+        }
+
+        // add player port numbers
+        void addPlayerPortNum(std::string player_port_num) {
+            player_port_nums.push_back(player_port_num);
+        }
         
         // connect to the players
-        int connectToPlayers(Ringmaster &ringmaster, Server &master_server);
+        int connectToPlayers(Server &master_server);
 
         // create ring process
-        int createRing(Ringmaster &ringmaster, Server &server);
+        int createRing(Server &server);
 
         // lanch the potato to the first random player
-        int launchPotato(Potato potato, Ringmaster &ringmaster);
-
+        int launchPotato(size_t num_hops);
         // receive potato from the last player
-        int receivePotato(Potato potato, Ringmaster &ringmaster);
+        int receivePotato();
 
         // print out the trace of the potato when get it back from the last player
-        void printTrace(Potato potato){
+        void printTrace(Potato &potato){
             potato.printTrace();
         }
 
         // shut down the game
-        int shutDownGame(Ringmaster &ringmaster);
+        int shutDownGame();
 
 };
 
         // check content of command line arguments
-        void checkRMArg(char *port_num, size_t num_player, size_t num_hops);
+        int checkRMArg(const char *port_num, size_t num_player, size_t num_hops);
 

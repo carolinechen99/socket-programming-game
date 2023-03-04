@@ -2,12 +2,13 @@
 
 using namespace std;
 
-    int Server::createSocket(char *port, bool isPlayer, Server &server){
+    int Server::createSocket(const char *port){
         int status;
-        int socket_fd;
+        int socket_fd = -1;
         struct addrinfo host_info;
         struct addrinfo *host_info_list;
         const char *hostname = NULL;
+        int portNum;
 
         memset(&host_info, 0, sizeof(host_info));
 
@@ -20,11 +21,6 @@ using namespace std;
             cerr << "Error: cannot get address info for host --server" << endl;
             return -1;
         } //if
-
-        // if is player, change port to 0 to get a random port
-        if (isPlayer){
-            ((struct sockaddr_in *)host_info_list->ai_addr)->sin_port = 0;
-        }
 
         // loop through all the results and bind to the first we can
         struct addrinfo *p;
@@ -45,10 +41,10 @@ using namespace std;
             } //if
             break;
         } //for
-        // get port number
-        server.port = getPortNum(socket_fd);
 
-        freeaddrinfo(host_info_list);
+        
+        portNum = getPortNum(socket_fd);
+        setPort(portNum);
 
         if (p == NULL) {
             cerr << "Error: failed to bind socket" << endl;
@@ -62,8 +58,11 @@ using namespace std;
             return -1;
         } //if
 
+
         // set server's socket_fd
-        server.socket_fd = socket_fd;
+        setSocketFd(socket_fd);
+
+        freeaddrinfo(host_info_list);
         return 0;
 
     }
@@ -77,7 +76,6 @@ using namespace std;
         }
         int port = ntohs(sin.sin_port);
         //print port for debugging
-        cout << "port: " << port << endl;
         return port;
     }
 
