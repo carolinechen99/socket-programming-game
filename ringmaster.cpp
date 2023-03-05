@@ -21,11 +21,15 @@ int Ringmaster::shutDownGame(){
 }
 
 // receive potato from the last player
-int Ringmaster::receivePotato(){
+int Ringmaster::receivePotato(Potato &potato){
+    ///!!!debug:multithread
+    std::unique_lock<std::mutex> lock(mtx_);
+    cv_.wait(lock);
+
+
     // using select() to check if there is any player sending potato
     size_t num_players = getNumPlayers();
     int status = -1;
-    Potato potato;
 
     vector <int> player_fds = getPlayerFds();
 
@@ -35,6 +39,15 @@ int Ringmaster::receivePotato(){
     for (size_t i = 0; i < num_players; i++) {
         FD_SET(player_fds[i], &readfds);
     }
+    //debug: print player_fds
+    cout << "player_fds: ";
+    for (size_t i = 0; i < num_players; i++) {
+        cout << player_fds[i] << " ";
+    }
+    cout << endl;
+
+
+
     int max_fd = player_fds[num_players - 1];
     status = select(max_fd + 1, &readfds, NULL, NULL, NULL);
     if (status == -1) {
@@ -42,51 +55,112 @@ int Ringmaster::receivePotato(){
         return -1;
     }
 
+    //debug: print max_fd
+    cout << "max_fd: " << max_fd << endl;
+
+
     //debug
     cout << "select() returns" << endl;
-    // if there is a player sending potato, receive the potato
+
+    // If there is a player sending potato, receive the potato
     for (size_t i = 0; i < num_players; i++) {
-        //debug
-        cout << "checking player " << i << endl;
         if (FD_ISSET(player_fds[i], &readfds)) {
-            //debug
-            cout << "player " << i << " is sending potato" << endl;
-            status = recv(player_fds[i], &potato, sizeof(potato), 0);
-            //debug
-            cout << "received potato from player " << i << endl;
+            status = recv(player_fds[i], &potato, sizeof(potato), MSG_WAITALL);
             if (status == -1) {
                 cerr << "Error: cannot receive potato from player" << endl;
                 return -1;
             }
-            // debug
-            cout << "received potato from player and no bug" << i << endl;
 
-
-            // shut down the game
+            // Shut down the game if potato has 0 hops
             if (potato.getHops() == 0) {
-
-                //debug
-                cout << "shutting down the game" << endl;
                 shutDownGame();
-                cout << "printttt:" << endl;
-                cout << "potato hops: " << potato.getHops() << endl;
-                cout << "potato fix hops: " << potato.getFixHop() << endl;
-                potato.printTrace();
-                //debug
-                cout << "printttt: done" << endl;
-                cout << "after print potato hops: " << potato.getHops() << endl;
-                cout << "after print potato fix hops: " << potato.getFixHop() << endl;
-
                 return 0;
             }
         }
     }
+
+
     return 0;
 }
 
 
 
 // lanch the potato to the first random player
+// int Ringmaster::launchPotato(size_t num_hops){
+//     // receive msg from player to indicate that player is ready
+//     // upon receiving the msg, print 'Player x is ready to play'
+//     // since connections are established, 
+//     // use select() to check if there is any msg from player
+//     // if the message is 'ready', print 'Player x is ready to play'
+
+//     // select() to check if there is any msg from player
+//     Potato potato(num_hops);
+//     size_t num_players  = 0;
+//     num_players= getNumPlayers();
+//     int status = -1;
+//     vector <bool> player_ready(num_players, false);
+//     while (count(player_ready.begin(), player_ready.end(), true) < num_players) {
+
+
+//     fd_set readfds;
+//     FD_ZERO(&readfds);
+//     for (size_t i = 0; i < num_players; i++) {
+//         if(!player_ready[i]){
+//         FD_SET(player_fds[i], &readfds);
+//         }
+//     }
+//     int max_fd = player_fds[num_players - 1];
+//     int status = select(max_fd + 1, &readfds, NULL, NULL, NULL);
+//     if (status == -1) {
+//         cerr << "Error: cannot select" << endl;
+//         return -1;
+//     }
+
+//     // if the message is 'ready', print 'Player x is ready to play'
+//     // note that the print out is not based on the order of player_fds
+//     // but based on which player sends the msg first
+//     // after receiving from all players, break the loop, and send potato to the random player
+//     for (size_t i = 0; i < num_players; i++) {
+//         if (FD_ISSET(player_fds[i], &readfds)&&!player_ready[i]) {
+//             char msg[6];
+//             status = recv(player_fds[i], msg, sizeof(msg), MSG_WAITALL);
+//             if (status == -1) {
+//                 cerr << "Error: cannot receive msg from player" << endl;
+//                 return -1;
+//             }
+//             cout << "Player " << i << " is ready to play" << endl;
+//             player_ready[i] = true;
+
+//             // remove file descriptor from the set !!!debug, i only remove 0 for test this time
+//             FD_CLR(player_fds[0], &readfds);
+
+//         }
+
+//     }
+// }
+
+//     if (potato.getHops() == 0) {
+//         return 0;
+//     }
+
+//     // send potato to the random player
+//     // first, send the number of hops to the random player
+//     // seed the random number generator
+//     srand(time(NULL));
+//     size_t random_player;
+//     random_player = rand() % num_players;
+//     status = send(player_fds[random_player], &potato, sizeof(Potato), 0);
+//     if (status == -1) {
+//         cerr << "Error: cannot send potato to player" << endl;
+//         return -1;
+//     }
+//     ///!!!debug: multi-threading
+//     cv_.notify_one();
+//     // print "Ready to start the game, sending potato to player x"
+//     cout << "Ready to start the game, sending potato to player " << random_player << endl;
+//     return 0;
+// }
+
 int Ringmaster::launchPotato(size_t num_hops){
     // receive msg from player to indicate that player is ready
     // upon receiving the msg, print 'Player x is ready to play'
@@ -94,52 +168,24 @@ int Ringmaster::launchPotato(size_t num_hops){
     // use select() to check if there is any msg from player
     // if the message is 'ready', print 'Player x is ready to play'
 
-    // select() to check if there is any msg from player
+    // wait for each player to send "ready" message
     Potato potato(num_hops);
-    size_t num_players  = 0;
-    num_players= getNumPlayers();
+    size_t num_players = getNumPlayers();
     int status = -1;
-    vector <bool> player_ready(num_players, false);
+    vector<int> player_fds = getPlayerFds();
+    vector<bool> player_ready(num_players, false);
+
     while (count(player_ready.begin(), player_ready.end(), true) < num_players) {
-
-
-    fd_set readfds;
-    FD_ZERO(&readfds);
-    for (size_t i = 0; i < num_players; i++) {
-        if(!player_ready[i]){
-        FD_SET(player_fds[i], &readfds);
-        }
-    }
-    int max_fd = player_fds[num_players - 1];
-    int status = select(max_fd + 1, &readfds, NULL, NULL, NULL);
-    if (status == -1) {
-        cerr << "Error: cannot select" << endl;
-        return -1;
-    }
-
-    // if the message is 'ready', print 'Player x is ready to play'
-    // note that the print out is not based on the order of player_fds
-    // but based on which player sends the msg first
-    // after receiving from all players, break the loop, and send potato to the random player
-    for (size_t i = 0; i < num_players; i++) {
-        if (FD_ISSET(player_fds[i], &readfds)&&!player_ready[i]) {
-            char msg[6];
-            status = recv(player_fds[i], msg, sizeof(msg), MSG_WAITALL);
-            if (status == -1) {
-                cerr << "Error: cannot receive msg from player" << endl;
-                return -1;
+        for (size_t i = 0; i < num_players; i++) {
+            if (!player_ready[i]) {
+                char msg[6];
+                status = recv(player_fds[i], msg, sizeof(msg), MSG_DONTWAIT);
+                if (status > 0 && strcmp(msg, "ready") == 0) {
+                    cout << "Player " << i << " is ready to play" << endl;
+                    player_ready[i] = true;
+                }
             }
-            cout << "Player " << i << " is ready to play" << endl;
-            player_ready[i] = true;
-
         }
-
-    }
-
-}
-
-    if (potato.getHops() == 0) {
-        return 0;
     }
 
     // send potato to the random player
@@ -153,10 +199,14 @@ int Ringmaster::launchPotato(size_t num_hops){
         cerr << "Error: cannot send potato to player" << endl;
         return -1;
     }
+
+    ///!!!debug: multi-threading
+    cv_.notify_one();
     // print "Ready to start the game, sending potato to player x"
     cout << "Ready to start the game, sending potato to player " << random_player << endl;
     return 0;
 }
+
 
 
 // create ring process
@@ -352,7 +402,7 @@ int main(int argc, char *argv[]) {
     // wait for the last player to send back the potato
 
     // receive the potato from the last player
-    ringmaster->receivePotato();
+    ringmaster->receivePotato(potato);
 
     // print out the trace of the potato when get it back from the last player
 
@@ -362,6 +412,8 @@ int main(int argc, char *argv[]) {
         close(ringmaster->player_fds[i]);
     }
     // close(rm_server->socket_fd); // debug
+
+    potato.printTrace();
 
     delete ringmaster;
     delete rm_server;

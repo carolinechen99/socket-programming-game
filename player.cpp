@@ -3,11 +3,52 @@
 
 using namespace std;
 
+int Player::getPlayerSockfd(const char* hostname, const char* port) {
+    int sockfd = -1;
+    struct addrinfo hints, *servinfo, *p;
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    int status = getaddrinfo(hostname, port, &hints, &servinfo);
+    if (status != 0) {
+        cerr << "Error: cannot get address info for host" << endl;
+        return -1;
+    }
+
+    // loop through all the results and connect to the first we can
+    for(p = servinfo; p != NULL; p = p->ai_next) {
+        sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        // for debugging
+    cout << "next_sockfd in loop: " << sockfd << endl;
+        if (sockfd == -1) {
+            continue;
+        }
+
+        status = connect(sockfd, p->ai_addr, p->ai_addrlen);
+        if (status == -1) {
+            close(sockfd);
+            continue;
+        }
+
+        break;
+    }
+
+    if (p == NULL) {
+        cerr << "Error: failed to connect socket" << endl;
+        return -1;
+    }
+
+    freeaddrinfo(servinfo);
+    return sockfd;
+}
+
 // keep listening to the three channels, and receive potato
 int Player::handlePotato(){
 
     Potato potato;
-    int num_players = -1;
+    size_t num_players = -1;
     num_players = getNumPlayers();
     int master_sockfd = -1;
     master_sockfd = getMasterSockfd();
@@ -81,7 +122,7 @@ int Player::handlePotato(){
 
         potato.addTrace(player_id);
         potato.nhops--;
-        cout << "add trace potato hops: " << potato.getHops() << endl;
+        cout << "add trace potato hops: " << potato.trace[potato.fix_hop- potato.nhops + 1] << endl;
         cout << "potato fix hops: " << potato.getFixHop() << endl;
         potato.printTrace();
     // if nhops > 0, add the player id to the path, pass to random neighbor
@@ -195,14 +236,18 @@ int Player::connectNextPlayer(){
     // receive next player's hostname and port number
     char next_hostname [256];
     char next_port [100];
+    int status = -1;
     memset(next_hostname, 0, sizeof(next_hostname));
     memset(next_port, 0, sizeof(next_port));
-    int master_sockfd = getMasterSockfd();
-    int status = recv(master_sockfd, next_hostname, sizeof(next_hostname), MSG_WAITALL);
+    int master_sockfd = -1;
+    master_sockfd= getMasterSockfd();
+    status = recv(master_sockfd, next_hostname, sizeof(next_hostname), MSG_WAITALL);
     if (status == -1) {
         cerr << "Error: cannot receive next_hostname from ringmaster" << endl;
         return -1;
     }
+
+    cout << "next_hostname: " << next_hostname << endl;
 
     status = recv(master_sockfd, next_port, sizeof(next_port), MSG_WAITALL);
     if (status == -1) {
@@ -210,51 +255,26 @@ int Player::connectNextPlayer(){
         return -1;
     }
 
+    cout << "next_port: " << next_port << endl;
+
     // connect to next player as a client
-    struct addrinfo host_info;
-    struct addrinfo *host_info_list;
+    int next_sockfd = getPlayerSockfd(next_hostname, next_port);
 
-    memset(&host_info, 0, sizeof(host_info));
-    host_info.ai_family = AF_UNSPEC;
-    host_info.ai_socktype = SOCK_STREAM;
-
-    status = getaddrinfo(next_hostname, next_port, &host_info, &host_info_list);
-    if (status != 0) {
-        cerr << "Error: cannot get address info for next host" << endl;
-        cerr << "  (" << next_hostname << "," << next_port << ")" << endl;
+    if (next_sockfd == -1) {
+        cerr << "Error: failed to connect to next player" << endl;
         return -1;
-    } //if
-
-    // loop through all the results and connect to the first we can
-    struct addrinfo *p;
-    int next_sockfd = -1;
-    
-    for(p = host_info_list; p != NULL; p = p->ai_next) {
-        next_sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if (next_sockfd == -1) {
-            continue;
-        } //if
-
-        status = connect(next_sockfd, p->ai_addr, p->ai_addrlen);
-        if (status == -1) {
-            close(next_sockfd);
-            continue;
-        } //if
-        break;
-    } //for
-
-    if (p == NULL) {
-        cerr << "Error: failed to connect socket" << endl;
-        return -1;
-    } //if
+    }
 
     // set next_sockfd
     setNextSockfd(next_sockfd);
+    cout << "next_sockfd set: " << getNextSockfd() << endl;
 
-    freeaddrinfo(host_info_list);
     return 0;
 
 }
+
+
+
 
 //connect to the ringmaster
 int Player::connectToRingmaster(const char *machine_name, const char *master_port, Server &player_server){
@@ -298,12 +318,12 @@ int Player::connectToRingmaster(const char *machine_name, const char *master_por
     // receive() id and numPlayers from ringmaster
     size_t id = 0;
     size_t numPlayers;
-    status = recv(socket_fd, &id, sizeof(id), 0);
+    status = recv(socket_fd, &id, sizeof(id), MSG_WAITALL);
     if (status == -1) {
         cerr << "Error: cannot receive id from ringmaster" << endl;
         return -1;
     }
-    status = recv(socket_fd, &numPlayers, sizeof(numPlayers), 0);
+    status = recv(socket_fd, &numPlayers, sizeof(numPlayers), MSG_WAITALL);
     if (status == -1) {
         cerr << "Error: cannot receive numPlayers from ringmaster" << endl;
         return -1;
@@ -330,6 +350,8 @@ int Player::connectToRingmaster(const char *machine_name, const char *master_por
         return -1;
     }
     setHostname(hostname);
+
+
 
     // get port number
     int port = player_server.port;

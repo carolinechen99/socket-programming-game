@@ -3,6 +3,8 @@
 #include <vector>
 #include <ctime>
 #include <algorithm>
+#include <condition_variable>
+#include <mutex>
 
 #include "socketutils.hpp"
 
@@ -84,7 +86,7 @@ class Player {
         int master_sockfd;
         int prev_sockfd;
         int next_sockfd;
-        int num_players;
+        size_t num_players;
 
 
     public:
@@ -115,7 +117,7 @@ class Player {
         }
 
         // get the number of players
-        int getNumPlayers() const {
+        size_t getNumPlayers() const {
             return num_players;
         }
 
@@ -167,7 +169,7 @@ class Player {
         }
 
         // set the number of players
-        void setNumPlayers(int num_players) {
+        void setNumPlayers(size_t num_players) {
             this->num_players = num_players;
         }
 
@@ -188,6 +190,9 @@ class Player {
 
         // keep listening to ringmaster, left neighbor and right neighbor, and receive potato
         int handlePotato();
+
+        // get player socket file descriptor
+        int getPlayerSockfd(const char* hostname, const char* port);
 
 
 };
@@ -216,6 +221,10 @@ Ready to start the game, sending potato to player 2 Trace of potato:
 2,1,2,0,2,1,0,2,...*/
 
 class Ringmaster {
+    private:
+        //debug!!!!:multithread
+        std::condition_variable cv_;
+        std::mutex mtx_;
     public:
         char port_num [100];
         size_t num_players;
@@ -296,7 +305,7 @@ class Ringmaster {
         // lanch the potato to the first random player
         int launchPotato(size_t num_hops);
         // receive potato from the last player
-        int receivePotato();
+        int receivePotato(Potato &potato);
 
         // print out the trace of the potato when get it back from the last player
         void printTrace(Potato &potato){

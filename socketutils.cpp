@@ -24,13 +24,15 @@ using namespace std;
 
         // loop through all the results and bind to the first we can
         struct addrinfo *p;
+        int yes = 1;
         for(p = host_info_list; p != NULL; p = p->ai_next) {
             socket_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
             if (socket_fd == -1) {
                 continue;
             } //if
 
-            if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &status, sizeof(int)) == -1) {
+            
+            if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
                 cerr << "Error: cannot set socket option" << endl;
                 return -1;
             } //if
@@ -60,7 +62,7 @@ using namespace std;
 
 
         // set server's socket_fd
-        setSocketFd(socket_fd);
+        setSocketFd(socket_fd);  
 
         freeaddrinfo(host_info_list);
         return 0;
