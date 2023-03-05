@@ -69,8 +69,14 @@ int Ringmaster::receivePotato(){
                 cout << "shutting down the game" << endl;
                 shutDownGame();
                 cout << "printttt:" << endl;
+                cout << "potato hops: " << potato.getHops() << endl;
+                cout << "potato fix hops: " << potato.getFixHop() << endl;
                 potato.printTrace();
+                //debug
                 cout << "printttt: done" << endl;
+                cout << "after print potato hops: " << potato.getHops() << endl;
+                cout << "after print potato fix hops: " << potato.getFixHop() << endl;
+
                 return 0;
             }
         }

@@ -81,6 +81,9 @@ int Player::handlePotato(){
 
         potato.addTrace(player_id);
         potato.nhops--;
+        cout << "add trace potato hops: " << potato.getHops() << endl;
+        cout << "potato fix hops: " << potato.getFixHop() << endl;
+        potato.printTrace();
     // if nhops > 0, add the player id to the path, pass to random neighbor
     if (potato.nhops > 0) {
 
@@ -124,8 +127,12 @@ int Player::handlePotato(){
 
         //debug
         cout << "Sent potato to ringmaster" << endl;
+        cout << "potato hops: " << potato.getHops() << endl;
+        cout << "potato fix hops: " << potato.getFixHop() << endl;
         potato.printTrace();
         cout << "it potato trace printed" << endl;
+        cout << "after print potato hops: " << potato.getHops() << endl;
+        cout << "after print potato fix hops: " << potato.getFixHop() << endl;
     }
 
     else {
