@@ -6,6 +6,8 @@ using namespace std;
 int Player::getPlayerSockfd(const char* hostname, const char* port) {
     int sockfd = -1;
     struct addrinfo hints, *servinfo, *p;
+    int player_id = -1;
+    player_id = getPlayerId();
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
@@ -71,6 +73,9 @@ int Player::handlePotato(){
     int max_fd = max(master_sockfd, prev_sockfd);
     max_fd = max(max_fd, next_sockfd);
 
+    // debug print: still in while check
+    cout << "still in while check" << endl;
+
     // select() to check if there is any msg from ringmaster or neighbors
     status = select(max_fd + 1, &readfds, NULL, NULL, NULL);
     if (status == -1) {
@@ -97,7 +102,7 @@ int Player::handlePotato(){
 
             //debug
             cout << "Received potato with nhops = 0 end game" << endl;
-            return 0;
+            break;
         }
     }
 
@@ -118,12 +123,11 @@ int Player::handlePotato(){
             return -1;
         }
     }
-
-
         potato.addTrace(player_id);
+
         potato.nhops--;
+        // debug
         cout << "add trace potato hops: " << potato.trace[potato.fix_hop- potato.nhops + 1] << endl;
-        cout << "potato fix hops: " << potato.getFixHop() << endl;
         potato.printTrace();
     // if nhops > 0, add the player id to the path, pass to random neighbor
     if (potato.nhops > 0) {
@@ -144,6 +148,8 @@ int Player::handlePotato(){
         }
         else {
             status = send(prev_sockfd, &potato, sizeof(potato), 0);
+            //debug: print status
+        cout << "send potato to prev status: " << status << endl;
             if (status == -1) {
                 cerr << "Error: cannot send potato to previous player" << endl;
                 return -1;
@@ -157,23 +163,21 @@ int Player::handlePotato(){
     else if (potato.nhops == 0) {
         // print "I'm it"
         cout << "I'm it" << endl;
-        // add player id to the path
-        potato.addTrace(player_id);
         // send potato back to ringmaster
-        status = send(master_sockfd, &potato, sizeof(potato), 0);
+        status = send(master_sockfd, &potato, sizeof(Potato), 0);
+        //debug: print status
+        cout << "send potato to master status: " << status << endl;
+
         if (status == -1) {
             cerr << "Error: cannot send potato to ringmaster" << endl;
             return -1;
         }
-
         //debug
         cout << "Sent potato to ringmaster" << endl;
-        cout << "potato hops: " << potato.getHops() << endl;
-        cout << "potato fix hops: " << potato.getFixHop() << endl;
+        cout << "final trace:";
+        cout << "final fix_hop: " << potato.fix_hop << endl;
         potato.printTrace();
-        cout << "it potato trace printed" << endl;
-        cout << "after print potato hops: " << potato.getHops() << endl;
-        cout << "after print potato fix hops: " << potato.getFixHop() << endl;
+        continue;
     }
 
     else {
@@ -211,8 +215,6 @@ int Player::connectToNeighbors(Server &player_server){
 
     return 0;
 }
-
-
 
 // accept connection from previous player
 int Player::acceptPrevPlayer(Server &player_server){
@@ -272,9 +274,6 @@ int Player::connectNextPlayer(){
     return 0;
 
 }
-
-
-
 
 //connect to the ringmaster
 int Player::connectToRingmaster(const char *machine_name, const char *master_port, Server &player_server){
@@ -351,8 +350,6 @@ int Player::connectToRingmaster(const char *machine_name, const char *master_por
     }
     setHostname(hostname);
 
-
-
     // get port number
     int port = player_server.port;
     string port_str = to_string(port);
@@ -360,7 +357,6 @@ int Player::connectToRingmaster(const char *machine_name, const char *master_por
     memset(port_num, 0, sizeof(port_num));
     strcpy(port_num, port_str.c_str());
     setPortNum(port_num);
-
 
     // send hostname and port number to ringmaster
     status = send(socket_fd, hostname, sizeof(hostname), 0);
@@ -439,6 +435,8 @@ int main(int argc, char *argv[]) {
         cerr << "Error: cannot handle potato" << endl;
         return -1;
     }
+    //debug :print player close
+    cout << "player close" << endl;
 
     // close socket
     close(player->master_sockfd);

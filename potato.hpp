@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <condition_variable>
 #include <mutex>
+#include <cstring>
 
 #include "socketutils.hpp"
 
@@ -19,11 +20,12 @@ class Potato {
     public:
         // constructor
         Potato(): nhops(0), fix_hop(0) {
-            memset(trace, 0, sizeof(trace));
+            //set this->trace to size_t[1024]
+            std::memset(this->trace, 0, sizeof(this->trace));
     }
 
         Potato(size_t nhops): nhops(nhops), fix_hop(nhops) {
-            memset(trace, 0, sizeof(trace));
+            std::memset(this->trace, 0, sizeof(this->trace));
         }
 
         size_t getHops() const {
