@@ -22,8 +22,6 @@ int Player::getPlayerSockfd(const char* hostname, const char* port) {
     // loop through all the results and connect to the first we can
     for(p = servinfo; p != NULL; p = p->ai_next) {
         sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        // for debugging
-    cout << "next_sockfd in loop: " << sockfd << endl;
         if (sockfd == -1) {
             continue;
         }
@@ -73,9 +71,6 @@ int Player::handlePotato(){
     int max_fd = max(master_sockfd, prev_sockfd);
     max_fd = max(max_fd, next_sockfd);
 
-    // debug print: still in while check
-    cout << "still in while check" << endl;
-
     // select() to check if there is any msg from ringmaster or neighbors
     status = select(max_fd + 1, &readfds, NULL, NULL, NULL);
     if (status == -1) {
@@ -83,32 +78,23 @@ int Player::handlePotato(){
         return -1;
     }
 
-    //debug
-    cout << "select() returns" << endl;
-
     // if there is a msg from ringmaster, receive the potato
     if (FD_ISSET(master_sockfd, &readfds)) {
-        status = recv(master_sockfd, &potato, sizeof(potato), MSG_WAITALL);
+        status = recv(master_sockfd, &potato, sizeof(potato), 0);
         if (status == -1) {
             cerr << "Error: cannot receive potato from ringmaster" << endl;
             return -1;
         }
-        //debug
-
-        cout << "potato from ringmaster: " << potato.nhops << endl;
 
         // if received potato with nhops = 0, return and shut down the game
         if (potato.nhops == 0) {
-
-            //debug
-            cout << "Received potato with nhops = 0 end game" << endl;
             break;
         }
     }
 
     // if there is a msg from previous player, receive the potato
     else if (FD_ISSET(prev_sockfd, &readfds)) {
-        status = recv(prev_sockfd, &potato, sizeof(potato), MSG_WAITALL);
+        status = recv(prev_sockfd, &potato, sizeof(potato), 0);
         if (status == -1) {
             cerr << "Error: cannot receive potato from previous player" << endl;
             return -1;
@@ -117,7 +103,7 @@ int Player::handlePotato(){
 
     // if there is a msg from next player, receive the potato
     else if (FD_ISSET(next_sockfd, &readfds)) {
-        status = recv(next_sockfd, &potato, sizeof(potato), MSG_WAITALL);
+        status = recv(next_sockfd, &potato, sizeof(potato), 0);
         if (status == -1) {
             cerr << "Error: cannot receive potato from next player" << endl;
             return -1;
@@ -126,9 +112,6 @@ int Player::handlePotato(){
         potato.addTrace(player_id);
 
         potato.nhops--;
-        // debug
-        cout << "add trace potato hops: " << potato.trace[potato.fix_hop- potato.nhops + 1] << endl;
-        potato.printTrace();
     // if nhops > 0, add the player id to the path, pass to random neighbor
     if (potato.nhops > 0) {
 
@@ -148,8 +131,6 @@ int Player::handlePotato(){
         }
         else {
             status = send(prev_sockfd, &potato, sizeof(potato), 0);
-            //debug: print status
-        cout << "send potato to prev status: " << status << endl;
             if (status == -1) {
                 cerr << "Error: cannot send potato to previous player" << endl;
                 return -1;
@@ -165,18 +146,10 @@ int Player::handlePotato(){
         cout << "I'm it" << endl;
         // send potato back to ringmaster
         status = send(master_sockfd, &potato, sizeof(Potato), 0);
-        //debug: print status
-        cout << "send potato to master status: " << status << endl;
-
         if (status == -1) {
             cerr << "Error: cannot send potato to ringmaster" << endl;
             return -1;
         }
-        //debug
-        cout << "Sent potato to ringmaster" << endl;
-        cout << "final trace:";
-        cout << "final fix_hop: " << potato.fix_hop << endl;
-        potato.printTrace();
         continue;
     }
 
@@ -204,14 +177,14 @@ int Player::connectToNeighbors(Server &player_server){
         return -1;
     }
 
-    // send msg to ringmaster to indicate that player is ready
-    const char *msg = "ready";
-    int master_sockfd = getMasterSockfd();
-    status = send(master_sockfd, msg, sizeof(msg), 0);
-    if (status == -1) {
-        cerr << "Error: cannot send ready msg to ringmaster" << endl;
-        return -1;
-    }
+    // // send msg to ringmaster to indicate that player is ready
+    // const char *msg = "ready";
+    // int master_sockfd = getMasterSockfd();
+    // status = send(master_sockfd, msg, sizeof(msg), 0);
+    // if (status == -1) {
+    //     cerr << "Error: cannot send ready msg to ringmaster" << endl;
+    //     return -1;
+    // }
 
     return 0;
 }
@@ -243,21 +216,17 @@ int Player::connectNextPlayer(){
     memset(next_port, 0, sizeof(next_port));
     int master_sockfd = -1;
     master_sockfd= getMasterSockfd();
-    status = recv(master_sockfd, next_hostname, sizeof(next_hostname), MSG_WAITALL);
+    status = recv(master_sockfd, next_hostname, sizeof(next_hostname), 0);
     if (status == -1) {
         cerr << "Error: cannot receive next_hostname from ringmaster" << endl;
         return -1;
     }
 
-    cout << "next_hostname: " << next_hostname << endl;
-
-    status = recv(master_sockfd, next_port, sizeof(next_port), MSG_WAITALL);
+    status = recv(master_sockfd, next_port, sizeof(next_port), 0);
     if (status == -1) {
         cerr << "Error: cannot receive next_port from ringmaster" << endl;
         return -1;
     }
-
-    cout << "next_port: " << next_port << endl;
 
     // connect to next player as a client
     int next_sockfd = getPlayerSockfd(next_hostname, next_port);
@@ -269,7 +238,6 @@ int Player::connectNextPlayer(){
 
     // set next_sockfd
     setNextSockfd(next_sockfd);
-    cout << "next_sockfd set: " << getNextSockfd() << endl;
 
     return 0;
 
@@ -317,12 +285,12 @@ int Player::connectToRingmaster(const char *machine_name, const char *master_por
     // receive() id and numPlayers from ringmaster
     size_t id = 0;
     size_t numPlayers;
-    status = recv(socket_fd, &id, sizeof(id), MSG_WAITALL);
+    status = recv(socket_fd, &id, sizeof(id), 0);
     if (status == -1) {
         cerr << "Error: cannot receive id from ringmaster" << endl;
         return -1;
     }
-    status = recv(socket_fd, &numPlayers, sizeof(numPlayers), MSG_WAITALL);
+    status = recv(socket_fd, &numPlayers, sizeof(numPlayers), 0);
     if (status == -1) {
         cerr << "Error: cannot receive numPlayers from ringmaster" << endl;
         return -1;
@@ -435,8 +403,7 @@ int main(int argc, char *argv[]) {
         cerr << "Error: cannot handle potato" << endl;
         return -1;
     }
-    //debug :print player close
-    cout << "player close" << endl;
+
 
     // close socket
     close(player->master_sockfd);
